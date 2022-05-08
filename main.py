@@ -53,7 +53,7 @@ def link_of(link: str):
             return plataforma
 
 
-def down_ifunny(link: str) -> str:
+def direct_link_ifunny(link: str) -> str:
     """Retorna link direto de vídeo em embed do ifunny"""
     session = create_session(config['user-agent']['linux'])
     page = bs(session.get(link).content, 'html.parser')
@@ -97,10 +97,11 @@ def down_for_direct_link_progress(link: str, filename: str, path: str, msg):
 
 
 def direct_link_tiktok(link):
+    "Retorna Link direto do vídeo tiktok"
     session = create_session(config['user-agent']['linux'])
     page = bs(session.get(link).content, 'html.parser')
-    
-
+    direct_link = page.find('video')['src']
+    return direct_link
 
 
 def get_file_extension(filename_or_path: str) -> str:
@@ -118,15 +119,23 @@ def verify(msg):
         plataforma = link_of(link)
         if not plataforma == None:
             if plataforma == 'ifunny':
-                direct_link = down_ifunny(link)
+                direct_link = direct_link_ifunny(link)
                 extension = get_file_extension('ifunny.mp4')
                 create_folder(config['paths']['temps'])
                 down_for_direct_link_progress(direct_link, 'ifuuny.mp4', config['paths']['temps'], message)
-                time.sleep(0.1)
+                time.sleep(0.01)
                 send_file(config['paths']['temps']+'/ifuuny.mp4', message, extension)                
                 garcom.delete_message(msg.chat.id, message.message_id)
-            elif:
-                plataforma == 'tiktok':
+            elif plataforma == 'tiktok':
+                direct_link = direct_link_tiktok(link)
+                extension = get_file_extension('tiktok.mp4')
+                create_folder(config['paths']['temps'])
+                down_for_direct_link_progress(direct_link, 'tiktok.mp4', config['paths']['temps'], message)
+                time.sleep(0.01)
+                send_file(config['paths']['temps']+'/tiktok.mp4', message, extension)
+                garcom.delete_message(msg.chat.id, message.message_id)
+                
+
 
 
     
