@@ -9,3 +9,6 @@ import json
 import getpass
 import telebot
 
+config = json.loads(open('config.json', 'r').read())
+
+garcom = telebot.TeleBot(config['token'], 'html.parser')
