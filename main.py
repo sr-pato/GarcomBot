@@ -14,13 +14,29 @@ import re
 
 config = json.loads(open('config.json', 'r').read())
 
-garcom = telebot.TeleBot(config['token'], 'html.parser')
+garcom = telebot.TeleBot(config['token'], 'HTML')
 
 def write_error(error: str):
     pass
 
 
+def create_folder(path: str):
+    "Cria pasta caso ela não exista"
+    if not os.path.exists(path):
+        os.mkdir(path)
 
+
+def clear(dest):
+    "Isso daqui é só pra remover arquivos temporários"
+    os.remove(dest)
+
+
+def send_file(dest, msg, extension):
+    "Envia arquivo para a conversa dependendo da sua extensão"
+    if extension in config['extensions']['video']:
+        garcom.send_video(msg.chat.id, open(dest, 'r').read(), supports_streaming=True)
+
+    
 def link_of(link: str) -> str or None:
     """Verifica se o link dado está entre as plataformas aceitas, caso não, retorna 'None'"""
     link = urlparse.urlsplit(link)
@@ -45,6 +61,55 @@ def down_ifunny(link: str) -> str:
 
 
 def down_for_direct_link(link: str, filename: str, path: str):
+    "Faz download do link argumentado salva na pasta com o filename inserido!"
     session = requests.Session()
     session.headers['user-agent'] = config['user-agent']['linux']
-    
+    if not os.path.exists(path):
+        with open(path+filename, 'wb') as fileDonw:
+            response = session.get(link, stream=True)
+            #size = int(response.headers['content-length'])/(1024**2)
+            for chunk in response.iter_content(1024**2):
+                fileDonw.write(chunk)
+    else:
+        write_error(config['msg_erros']['file_exists'])
+    session.close()
+    return None
+
+
+def down_for_direct_link_progress(link: str, filename: str, path: str, msg):
+    "Faz download do link com barra de progresso no telegram salva na pasta com o filename inserido!"
+    session = requests.Session()
+    session.headers['user-agent'] = config['user-agent']['linux']
+    if not os.path.exists(path):
+        with open(path+filename, 'wb') as fileDonw:
+            response = session.get(link, stream=True)
+            baixado = size = int(response.headers['content-length'])/(1024**2)
+            for chunk in response.iter_content(1024**2):
+                baixado -= 1024**2
+                fileDonw.write(chunk)
+                garcom.edit_message_text(f"<b>BAIXANDO!!!</b>\n\nArquivo: <code>{filename}</code>\nTotal: <code>{round(size)} MB</code>\nBaixado: <code>{round(baixado)} MB</code>\nProgresso: <code>{round((baixado*100)/size)}</code>", msg.chat.id, msg.message_id)              
+    else:
+        write_error(config['msg_erros']['file_exists'])
+    session.close()
+    return None
+
+
+def get_file_extension(filename_or_path: str) -> str:
+    "Retorna a extensão de algum arquivo"
+    extension = filename_or_path.split('.')[-1]
+    return extension
+
+
+### Commands
+@garcom.message_handler('down')
+def verify(msg):
+    links = msg.text.split(' ')[1:]
+    for link in links:
+        plataforma = link_of[link]
+        if not plataforma == None:
+            if plataforma == 'ifunny':
+                direct_link = down_ifunny(link)
+                extension = get_file_extension('ifunny.mp4')
+                down_for_direct_link_progress(direct_link, 'ifuuny.mp4', config['paths']['temps/'], msg)
+                send_file(config['paths']['temps']+'ifunny.mp4', msg, extension)
+
