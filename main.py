@@ -10,11 +10,19 @@ import getpass
 import telebot
 import urllib.parse as urlparse 
 import re
+import time
 
 
 config = json.loads(open('config.json', 'r').read())
 
 garcom = telebot.TeleBot(config['token'], 'HTML')
+
+def create_session(user_agent):
+    "Retorna uma sessão novinha em folha"
+    session = requests.Session()
+    session.headers['user-agent'] = user_agent
+    return session
+
 
 def write_error(error: str):
     pass
@@ -34,23 +42,21 @@ def clear(dest):
 def send_file(dest, msg, extension):
     "Envia arquivo para a conversa dependendo da sua extensão"
     if extension in config['extensions']['video']:
-        garcom.send_video(msg.chat.id, open(dest, 'r').read(), supports_streaming=True)
+        garcom.send_video(msg.chat.id, open(dest, 'rb').read(), supports_streaming=True)
 
     
-def link_of(link: str) -> str or None:
+def link_of(link: str):
     """Verifica se o link dado está entre as plataformas aceitas, caso não, retorna 'None'"""
     link = urlparse.urlsplit(link)
     for plataforma in config['plataformas']:
         if link.path in config['plataformas'][plataforma] or link.netloc in config['plataformas'][plataforma]:
             return plataforma
-    return None
-    
+
 
 def down_ifunny(link: str) -> str:
     """Retorna link direto de vídeo em embed do ifunny"""
-    session = requests.Session()
-    session.headers['user-agent'] = config['user-agent']['linux']
-    page = bs(requests.get(link).content, 'html.parser')
+    session = create_session(config['user-agent']['linux'])
+    page = bs(session.get(link).content, 'html.parser')
     try:
         direct_link = page.find('video')['data-src']
     except:
@@ -58,16 +64,14 @@ def down_ifunny(link: str) -> str:
     else:
         session.close()
         return direct_link
-
+        
 
 def down_for_direct_link(link: str, filename: str, path: str):
     "Faz download do link argumentado salva na pasta com o filename inserido!"
-    session = requests.Session()
-    session.headers['user-agent'] = config['user-agent']['linux']
+    session = create_session(config['user-agent']['linux'])
     if not os.path.exists(path):
         with open(path+filename, 'wb') as fileDonw:
             response = session.get(link, stream=True)
-            #size = int(response.headers['content-length'])/(1024**2)
             for chunk in response.iter_content(1024**2):
                 fileDonw.write(chunk)
     else:
@@ -78,20 +82,25 @@ def down_for_direct_link(link: str, filename: str, path: str):
 
 def down_for_direct_link_progress(link: str, filename: str, path: str, msg):
     "Faz download do link com barra de progresso no telegram salva na pasta com o filename inserido!"
-    session = requests.Session()
-    session.headers['user-agent'] = config['user-agent']['linux']
-    if not os.path.exists(path):
-        with open(path+filename, 'wb') as fileDonw:
-            response = session.get(link, stream=True)
-            baixado = size = int(response.headers['content-length'])/(1024**2)
-            for chunk in response.iter_content(1024**2):
-                baixado -= 1024**2
-                fileDonw.write(chunk)
-                garcom.edit_message_text(f"<b>BAIXANDO!!!</b>\n\nArquivo: <code>{filename}</code>\nTotal: <code>{round(size)} MB</code>\nBaixado: <code>{round(baixado)} MB</code>\nProgresso: <code>{round((baixado*100)/size)}</code>", msg.chat.id, msg.message_id)              
-    else:
-        write_error(config['msg_erros']['file_exists'])
+    session = create_session(config['user-agent']['linux'])
+    with open(path+filename, 'wb') as fileDonw:
+        response = session.get(link, stream=True)
+        baixado = size = int(response.headers['content-length'])
+        for chunk in response.iter_content(10240):
+            baixado -= 10240
+            fileDonw.write(chunk)
+            garcom.edit_message_text(f"<b>BAIXANDO!!!</b>\n\nArquivo: <code>{filename}</code>\nTotal: <code>{round(size)} Bytes</code>\nBaixado: <code>{round(baixado)} Bytes</code>\nProgresso: <code>{round(100-(baixado*100)/size)}%</code>", msg.chat.id, msg.message_id)
+            clear(path+filename)
+        fileDonw.close()
     session.close()
     return None
+
+
+def direct_link_tiktok(link):
+    session = create_session(config['user-agent']['linux'])
+    page = bs(session.get(link).content, 'html.parser')
+    
+
 
 
 def get_file_extension(filename_or_path: str) -> str:
@@ -101,15 +110,25 @@ def get_file_extension(filename_or_path: str) -> str:
 
 
 ### Commands
-@garcom.message_handler('down')
+@garcom.message_handler(['downn'])
 def verify(msg):
+    message = garcom.reply_to(msg, 'Blz, to vendo isso aí...')
     links = msg.text.split(' ')[1:]
     for link in links:
-        plataforma = link_of[link]
+        plataforma = link_of(link)
         if not plataforma == None:
             if plataforma == 'ifunny':
                 direct_link = down_ifunny(link)
                 extension = get_file_extension('ifunny.mp4')
-                down_for_direct_link_progress(direct_link, 'ifuuny.mp4', config['paths']['temps/'], msg)
-                send_file(config['paths']['temps']+'ifunny.mp4', msg, extension)
+                create_folder(config['paths']['temps'])
+                down_for_direct_link_progress(direct_link, 'ifuuny.mp4', config['paths']['temps'], message)
+                time.sleep(0.1)
+                send_file(config['paths']['temps']+'/ifuuny.mp4', message, extension)                
+                garcom.delete_message(msg.chat.id, message.message_id)
+            elif:
+                plataforma == 'tiktok':
 
+
+    
+
+garcom.polling(non_stop=True)
