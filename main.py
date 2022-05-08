@@ -40,9 +40,11 @@ def down_ifunny(link: str) -> str:
     except:
         write_error(config['msg_erros']['video_not_found_ifunny'])
     else:
+        session.close()
         return direct_link
 
 
 def down_for_direct_link(link: str, filename: str, path: str):
-    pass
-
+    session = requests.Session()
+    session.headers['user-agent'] = config['user-agent']['linux']
+    
